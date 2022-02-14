@@ -64,8 +64,13 @@ public:
     int allocFrameBuffer(size_t size, int usage, buffer_handle_t* pHandle);
 
     static int postBuffer(struct framebuffer_device_t* dev, buffer_handle_t buffer);
+#ifdef FSL_EPDC_FB
+    static int setUpdateRect(struct framebuffer_device_t* dev,
+        int* left, int* top, int* width, int* height, int* updatemode, int count);
+#else
     static int setUpdateRect(struct framebuffer_device_t* dev,
         int l, int t, int w, int h);
+#endif
     static int setSwapInterval(struct framebuffer_device_t* dev,
             int interval);
     static int compositionComplete(struct framebuffer_device_t* dev);
@@ -158,6 +163,8 @@ private:
     Display* mDisplays[MAX_DISPLAY_DEVICE];
 };
 
+#ifdef IMX_GPU
+
 class GPUBufferManager : public BufferManager
 {
 public:
@@ -202,6 +209,8 @@ private:
     alloc_device_t *gpu_device;
     gralloc_module_t* gralloc_viv;
 };
+
+#endif //IMX_GPU
 
 class CPUBufferManager : public BufferManager
 {

@@ -52,10 +52,17 @@
 #include <gralloc_priv.h>
 #include <BufferManager.h>
 /*****************************************************************************/
+#define MAX_RECT_NUM 20
 
 // numbers of buffers for page flipping
 #ifndef NUM_FRAMEBUFFER_SURFACE_BUFFERS
+
+#ifdef FSL_EPDC_FB
+#define NUM_BUFFERS 2
+#else
 #define NUM_BUFFERS 3
+#endif //FSL_EPDC_FB
+
 #else
 #define NUM_BUFFERS NUM_FRAMEBUFFER_SURFACE_BUFFERS
 #endif
@@ -73,7 +80,166 @@ struct fb_context_t {
     framebuffer_device_t  device;
     Display* display;
     int isMainDisp;
+#ifdef FSL_EPDC_FB
+//Partial update feature
+    bool rect_update;
+    int count;      //count need less than MAX_RECT_NUM ;
+    int updatemode[20];
+    int partial_left[20];
+    int partial_top[20];
+    int partial_width[20];
+    int partial_height[20];
+#endif
 };
+
+#ifdef FSL_EPDC_FB
+#define WAVEFORM_MODE_INIT                      0x0   // Screen goes to white (clears)
+#define WAVEFORM_MODE_DU                        0x1   // Grey->white/grey->black
+#define WAVEFORM_MODE_GC16                      0x2   // High fidelity (flashing)
+#define WAVEFORM_MODE_GC4                       0x3   //
+#define WAVEFORM_MODE_ANIM                      0x4   // animation
+//#define WAVEFORM_MODE_AUTO                    257  // defined in mxcfb.h
+
+
+#define EINK_WAVEFORM_MODE_INIT      0x00000000
+#define EINK_WAVEFORM_MODE_DU        0x00000001
+#define EINK_WAVEFORM_MODE_GC16      0x00000002
+#define EINK_WAVEFORM_MODE_GC4       0x00000003
+#define EINK_WAVEFORM_MODE_ANIM      0x00000004
+#define EINK_WAVEFORM_MODE_AUTO      0x00000005
+#define EINK_WAVEFORM_MODE_MASK      0x0000000F
+#define EINK_AUTO_MODE_REGIONAL      0x00000000
+#define EINK_AUTO_MODE_AUTOMATIC     0x00000010
+#define EINK_AUTO_MODE_MASK          0x00000010
+#define EINK_UPDATE_MODE_PARTIAL     0x00000000
+#define EINK_UPDATE_MODE_FULL        0x00000020
+#define EINK_UPDATE_MODE_MASK        0x00000020
+#define EINK_WAIT_MODE_NOWAIT        0x00000000
+#define EINK_WAIT_MODE_WAIT          0x00000040
+#define EINK_WAIT_MODE_MASK          0x00000040
+#define EINK_COMBINE_MODE_NOCOMBINE  0x00000000
+#define EINK_COMBINE_MODE_COMBINE    0x00000080
+#define EINK_COMBINE_MODE_MASK       0x00000080
+#define EINK_DITHER_MODE_NODITHER    0x00000000
+#define EINK_DITHER_MODE_DITHER      0x00000100
+#define EINK_DITHER_MODE_MASK        0x00000100
+#define EINK_INVERT_MODE_NOINVERT    0x00000000
+#define EINK_INVERT_MODE_INVERT      0x00000200
+#define EINK_INVERT_MODE_MASK        0x00000200
+#define EINK_CONVERT_MODE_NOCONVERT  0x00000000
+#define EINK_CONVERT_MODE_CONVERT    0x00000400
+#define EINK_CONVERT_MODE_MASK       0x00000400
+#define EINK_DITHER_COLOR_Y4         0x00000000
+#define EINK_DITHER_COLOR_Y1         0x00000800
+#define EINK_DITHER_COLOR_MASK       0x00000800
+
+#define EINK_DEFAULT_MODE            0x00000004
+
+__u32 marker_val = 1;
+static void update_to_display(int left, int top, int width, int height, int updatemode, int fb_dev)
+{
+	struct mxcfb_update_data upd_data;
+	int retval;
+	bool wait_for_complete;
+	int auto_update_mode = AUTO_UPDATE_MODE_REGION_MODE;
+	memset(&upd_data, 0, sizeof(mxcfb_update_data));
+
+    ALOGI("update_to_display:left=%d, top=%d, width=%d, height=%d updatemode=%d\n", left, top, width, height,updatemode);
+
+
+    if((updatemode & EINK_WAVEFORM_MODE_MASK) == EINK_WAVEFORM_MODE_DU)
+	   upd_data.waveform_mode = WAVEFORM_MODE_DU;
+	else if((updatemode & EINK_WAVEFORM_MODE_MASK) == EINK_WAVEFORM_MODE_GC4)
+	   upd_data.waveform_mode = WAVEFORM_MODE_GC4;
+	else if((updatemode & EINK_WAVEFORM_MODE_MASK) == EINK_WAVEFORM_MODE_GC16)
+	   upd_data.waveform_mode = WAVEFORM_MODE_GC16;
+	else if((updatemode & EINK_WAVEFORM_MODE_MASK) == EINK_WAVEFORM_MODE_ANIM)
+	   upd_data.waveform_mode = WAVEFORM_MODE_ANIM;
+	else if((updatemode & EINK_WAVEFORM_MODE_MASK) == EINK_WAVEFORM_MODE_AUTO)
+	   upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
+	else
+        ALOGI("waveform_mode  wrong\n");
+
+    if((updatemode & EINK_AUTO_MODE_MASK) == EINK_AUTO_MODE_REGIONAL)
+        auto_update_mode = AUTO_UPDATE_MODE_REGION_MODE;
+    else if((updatemode & EINK_AUTO_MODE_MASK) == EINK_AUTO_MODE_AUTOMATIC)
+        auto_update_mode = AUTO_UPDATE_MODE_AUTOMATIC_MODE;
+    else
+        ALOGI("wait_for_complete  wrong\n");
+
+    if((updatemode & EINK_UPDATE_MODE_MASK) == EINK_UPDATE_MODE_PARTIAL)
+        upd_data.update_mode = UPDATE_MODE_PARTIAL;
+    else if((updatemode & EINK_UPDATE_MODE_MASK) == EINK_UPDATE_MODE_FULL)
+        upd_data.update_mode = UPDATE_MODE_FULL;
+    else
+        ALOGI("update_mode  wrong\n");
+
+    if((updatemode & EINK_WAIT_MODE_MASK) == EINK_WAIT_MODE_NOWAIT)
+        wait_for_complete = false;
+    else if((updatemode & EINK_WAIT_MODE_MASK) == EINK_WAIT_MODE_WAIT)
+        wait_for_complete = true;
+    else
+        ALOGI("wait_for_complete  wrong\n");
+
+    if((updatemode & EINK_INVERT_MODE_MASK) == EINK_INVERT_MODE_INVERT)
+	{
+	   upd_data.flags |= EPDC_FLAG_ENABLE_INVERSION;
+       ALOGI("invert mode \n");
+    }
+
+    if((updatemode & EINK_DITHER_MODE_MASK) == EINK_DITHER_MODE_DITHER)
+    {
+        if((updatemode & EINK_DITHER_COLOR_MASK) == EINK_DITHER_COLOR_Y4)
+            upd_data.flags |= EPDC_FLAG_USE_DITHERING_Y4;
+        else if((updatemode & EINK_DITHER_COLOR_MASK) == EINK_DITHER_COLOR_Y1)
+            upd_data.flags |= EPDC_FLAG_USE_DITHERING_Y1;
+        ALOGI("dithering mode \n");
+    }
+
+    if((updatemode & EINK_CONVERT_MODE_MASK) == EINK_CONVERT_MODE_CONVERT)
+    {
+        upd_data.flags |= EPDC_FLAG_FORCE_MONOCHROME;
+        ALOGI("convert mode \n");
+    }
+
+	retval = ioctl(fb_dev, MXCFB_SET_AUTO_UPDATE_MODE, &auto_update_mode);
+	if (retval < 0) {
+		ALOGI("set auto update mode failed.  Error = 0x%x", retval);
+	}
+
+    upd_data.temp = 24; //the temperature is get from linux team
+	upd_data.update_region.left = left;
+	upd_data.update_region.width = width;
+	upd_data.update_region.top = top;
+	upd_data.update_region.height = height;
+
+	if (wait_for_complete) {
+		/* Get unique marker value */
+		upd_data.update_marker = marker_val++;
+	} else {
+		upd_data.update_marker = 0;
+	}
+
+	retval = ioctl(fb_dev, MXCFB_SEND_UPDATE, &upd_data);
+	while (retval < 0) {
+		/* We have limited memory available for updates, so wait and
+		 * then try again after some updates have completed */
+		usleep(300000);
+		retval = ioctl(fb_dev, MXCFB_SEND_UPDATE, &upd_data);
+        ALOGI("MXCFB_SEND_UPDATE  retval = 0x%x try again maybe", retval);
+	}
+
+	if (wait_for_complete) {
+		/* Wait for update to complete */
+		retval = ioctl(fb_dev, MXCFB_WAIT_FOR_UPDATE_COMPLETE, &upd_data.update_marker);
+		if (retval < 0) {
+			ALOGI("Wait for update complete failed.  Error = 0x%x", retval);
+		}
+	}
+
+
+}
+#endif
 
 static int nr_framebuffers;
 
@@ -89,6 +255,34 @@ int Display::setSwapInterval(struct framebuffer_device_t* dev,
     return 0;
 }
 
+#ifdef FSL_EPDC_FB
+int Display::setUpdateRect(struct framebuffer_device_t* dev,
+        int* left, int* top, int* width, int* height, int* updatemode, int count)
+{
+
+    fb_context_t* ctx = (fb_context_t*)dev;
+    if(count > MAX_RECT_NUM)
+    {
+        ALOGE("count > MAX_RECT_NUM in fb_setUpdateRect\n");
+        return -EINVAL;
+    }
+
+    ctx->rect_update      = true;
+    ctx->count            = 0;
+    for(int i=0; i < count; i++)
+    {
+        if (((width[i]|height[i]) <= 0) || ((left[i]|top[i])<0))  return -EINVAL;
+        ctx->updatemode[i]       = updatemode[i];
+        ctx->partial_left[i]     = left[i];
+        ctx->partial_top[i]      = top[i];
+        ctx->partial_width[i]    = width[i];
+        ctx->partial_height[i]   = height[i];
+    }
+    ctx->count            = count;
+
+    return 0;
+}
+#else
 int Display::setUpdateRect(struct framebuffer_device_t* dev,
         int l, int t, int w, int h)
 {
@@ -102,6 +296,7 @@ int Display::setUpdateRect(struct framebuffer_device_t* dev,
     m->mInfo.reserved[2] = (uint16_t)(l+w) | ((uint32_t)(t+h) << 16);
     return 0;
 }
+#endif
 
 int Display::postBuffer(struct framebuffer_device_t* dev, buffer_handle_t buffer)
 {
@@ -145,6 +340,21 @@ int Display::postBuffer(struct framebuffer_device_t* dev, buffer_handle_t buffer
             //return -errno;
         }
 
+#ifdef FSL_EPDC_FB
+        if(ctx->rect_update) {
+            for(int i=0; i < ctx->count; i++)
+            {
+                update_to_display(ctx->partial_left[i],ctx->partial_top[i],
+                              ctx->partial_width[i],ctx->partial_height[i],
+                              ctx->updatemode[i],display->mFramebuffer->fd);
+            }
+
+            ctx->rect_update = false;
+        }
+        else{
+            update_to_display(0,0,display->mInfo.xres,display->mInfo.yres,EINK_DEFAULT_MODE,display->mFramebuffer->fd);
+        }
+#endif
         display->mCurrentBuffer = buffer;
 
     } else {
@@ -168,6 +378,21 @@ int Display::postBuffer(struct framebuffer_device_t* dev, buffer_handle_t buffer
 
         memcpy(fb_vaddr, buffer_vaddr,
         display->mFinfo.line_length * ALIGN_PIXEL_16(display->mInfo.yres));
+#ifdef FSL_EPDC_FB
+        if(ctx->rect_update) {
+            for(int i=0; i < ctx->count; i++)
+            {
+                update_to_display(ctx->partial_left[i],ctx->partial_top[i],
+                              ctx->partial_width[i],ctx->partial_height[i],
+                              ctx->updatemode[i],display->mFramebuffer->fd);
+            }
+
+            ctx->rect_update = false;
+        }
+        else{
+            update_to_display(0,0,display->mInfo.xres,display->mInfo.yres, EINK_DEFAULT_MODE ,display->mFramebuffer->fd);
+        }
+#endif
 
         m->unlock(buffer);
         m->unlock(display->mFramebuffer);
@@ -204,6 +429,16 @@ int Display::checkFramebufferFormat(int fd, uint32_t &flags)
      *note: 16 alignment here should align with BufferManager::alloc.
      */
     info.xres_virtual = ALIGN_PIXEL_16(info.xres);
+
+#ifdef FSL_EPDC_FB
+    info.yres_virtual = info.yres;
+    info.bits_per_pixel = 16;
+    info.grayscale = 0;
+    info.yoffset = 0;
+    // force to trigger the calling of fb_set_var and mxc_epdc_fb_init_hw, so the eink waveform is loaded.
+    //info.rotate = FB_ROTATE_UR;
+    info.reserved[3] = 2;
+#endif
 
     if (info.bits_per_pixel == 32) {
         /*
@@ -378,6 +613,21 @@ int Display::initialize(int fb)
         return -errno;
     }
 
+#ifdef FSL_EPDC_FB
+    int auto_update_mode = AUTO_UPDATE_MODE_REGION_MODE;
+    int retval = ioctl(fd, MXCFB_SET_AUTO_UPDATE_MODE, &auto_update_mode);
+    if (retval < 0) {
+        ALOGE("Error! set auto update mode error!\n");
+        return -errno;
+    }
+
+    int scheme_mode = UPDATE_SCHEME_QUEUE_AND_MERGE;
+    retval = ioctl(fd, MXCFB_SET_UPDATE_SCHEME, &scheme_mode);
+    if (retval < 0) {
+        ALOGE("Error! set update scheme error!\n");
+        return -errno;
+    }
+#endif
     int refreshRate = 1000000000000000LLU /
     (
             uint64_t(info.upper_margin + info.lower_margin + info.yres + info.vsync_len)

@@ -15,15 +15,23 @@
 
 LOCAL_PATH := $(call my-dir)
 
-# HAL module implemenation, not prelinked and stored in
+# HAL module implemenation stored in
 # hw/<OVERLAY_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
-LOCAL_PRELINK_MODULE := false
-LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
-LOCAL_SHARED_LIBRARIES := liblog libEGL
-LOCAL_SRC_FILES := hwcomposer.cpp
-LOCAL_MODULE := hwcomposer.$(TARGET_BOARD_PLATFORM)
-LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\"
-LOCAL_MODULE_TAGS := eng
-include $(BUILD_SHARED_LIBRARY)
 
+LOCAL_MODULE_RELATIVE_PATH := hw
+LOCAL_SHARED_LIBRARIES := liblog libcutils
+
+LOCAL_SRC_FILES := 	\
+	gralloc.cpp 	\
+	framebuffer.cpp \
+	mapper.cpp
+
+LOCAL_MODULE := gralloc.$(TARGET_BOARD_PLATFORM)
+LOCAL_CFLAGS:= -DLOG_TAG=\"$(TARGET_BOARD_PLATFORM).gralloc\" -Wno-missing-field-initializers
+
+ifeq ($(HAVE_FSL_EPDC_FB),true)
+LOCAL_CFLAGS += -DFSL_EPDC_FB
+endif
+
+include $(BUILD_SHARED_LIBRARY)

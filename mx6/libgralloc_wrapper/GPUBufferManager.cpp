@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#ifdef IMX_GPU
 
 #include <BufferManager.h>
 #include <gpuhelper.h>
@@ -45,8 +46,7 @@ GPUBufferManager::~GPUBufferManager()
     }
 }
 
-private_handle_t* GPUBufferManager::createPrivateHandle(int fd,
-                             int size, int flags)
+private_handle_t* GPUBuf# GPUBufferManager.cpp     int size, int flags)
 {
     return graphic_handle_create(fd, size, flags);
 }
@@ -295,3 +295,4 @@ int GPUBufferManager::unlockHandle(private_handle_t* hnd)
     return graphic_buffer_unlock(hnd);
 }
 
+#endif

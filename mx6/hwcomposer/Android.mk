@@ -39,12 +39,16 @@ LOCAL_SRC_FILES :=				\
 	hwc_uevent.cpp
 
 LOCAL_MODULE := hwcomposer.$(TARGET_BOARD_PLATFORM)
-LOCAL_C_INCLUDES += hardware/imx/mx6/libgralloc_wrapper \
+LOCAL_C_INCLUDES += hardware/imx/gralloc \
                     device/fsl-proprietary/include \
                     system/core/include/
 
 LOCAL_CFLAGS:= -DLOG_TAG=\"hwcomposer\"
 LOCAL_CFLAGS += -DENABLE_VSYNC
+
+ifeq ($(HAVE_FSL_EPDC_FB),true)
+LOCAL_CFLAGS += -DFSL_EPDC_FB
+endif
 
 ifneq ($(NUM_FRAMEBUFFER_SURFACE_BUFFERS),)
   LOCAL_CFLAGS += -DNUM_FRAMEBUFFER_SURFACE_BUFFERS=$(NUM_FRAMEBUFFER_SURFACE_BUFFERS)

@@ -30,7 +30,7 @@ BufferManager* BufferManager::getInstance()
     }
 
 #ifdef IMX_GPU
-    sInstance = new GPUBufferManager();
+//    sInstance = new GPUBufferManager();
 #else
     sInstance = new CPUBufferManager();
 #endif

@@ -22,7 +22,7 @@ include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libcutils libGLESv1_CM \
-                          libhardware libutils libion libgpuhelper
+                          libhardware libutils libion
 
 LOCAL_SRC_FILES := 	\
     framebuffer.cpp \
@@ -37,9 +37,9 @@ LOCAL_MODULE := gralloc.$(TARGET_BOARD_PLATFORM)
 LOCAL_CFLAGS:= -DLOG_TAG=\"$(TARGET_BOARD_PLATFORM).gralloc\" -D_LINUX
 
 
-#ifeq ($(HAVE_FSL_EPDC_FB),true)
-#LOCAL_CFLAGS += -DFSL_EPDC_FB
-#endif
+ifeq ($(HAVE_FSL_EPDC_FB),true)
+LOCAL_CFLAGS += -DFSL_EPDC_FB
+endif
 
 ifeq ($(HAVE_FSL_IMX_IPU),true)
 LOCAL_CFLAGS += -DFSL_IMX_DISPLAY

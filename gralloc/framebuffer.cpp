@@ -48,7 +48,7 @@
 /*****************************************************************************/
 
 // numbers of buffers for page flipping
-#define NUM_BUFFERS 3
+#define NUM_BUFFERS 1
 
 enum
 {
@@ -91,6 +91,10 @@ static void update_to_display(int left, int top, int width, int height, int upda
         upd_data.waveform_mode = WAVEFORM_MODE_A2;
     else if ((update_mode & KINDLE_WAVEFORM_MODE_MASK) == KINDLE_WAVEFORM_MODE_AUTO)
         upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
+    else if ((update_mode & KINDLE_WAVEFORM_MODE_MASK) == KINDLE_WAVEFORM_MODE_REAGL)
+        upd_data.waveform_mode = WAVEFORM_MODE_REAGL;
+    else if ((update_mode & KINDLE_WAVEFORM_MODE_MASK) == KINDLE_WAVEFORM_MODE_REAGLD)
+        upd_data.waveform_mode = WAVEFORM_MODE_REAGLD;
     else
         ALOGI("Invalid waveform_mode\n");
 
@@ -302,12 +306,12 @@ private:
         {
             gc_interval_ = ((mode & 0x00ff0000) >> 16);
             //gu_count_ = gc_interval_;
-            ALOGI("GCInterval policy: %d\n", gc_interval_);
+            //ALOGI("GCInterval policy: %d\n", gc_interval_);
         }
         else if (mode & KINDLE_AUTO_MASK)
         {
             clearGCInterval();
-            ALOGI("Automatic policy.\n");
+            //ALOGI("Automatic policy.\n");
         }
     }
 
@@ -415,19 +419,19 @@ static int fb_post(struct framebuffer_device_t *dev, buffer_handle_t buffer)
         }
 
 #ifdef FSL_EPDC_FB
-        if (ctx->rect_update)
-        {
-            for(int i = 0; i < ctx->rect_count; i++) {
-                kindle_display_update(ctx->partial_left[i],ctx->partial_top[i],
-                    ctx->partial_width[i],ctx->partial_height[i],
-                    ctx->update_mode[i], m->framebuffer->fd, (i >= ctx->rect_count - 1));
-            }
-            ctx->rect_update = false;
-        }
-        else
-        {
-            kindle_display_update(0, 0, m->info.xres, m->info.yres, KINDLE_DEFAULT_MODE, m->framebuffer->fd, true);
-        }
+        // if (ctx->rect_update)
+        // {
+        //     for(int i = 0; i < ctx->rect_count; i++) {
+        //         kindle_display_update(ctx->partial_left[i],ctx->partial_top[i],
+        //             ctx->partial_width[i],ctx->partial_height[i],
+        //             ctx->update_mode[i], m->framebuffer->fd, (i >= ctx->rect_count - 1));
+        //     }
+        //     ctx->rect_update = false;
+        // }
+        // else
+        // {
+            kindle_display_update(0, 0, m->info.xres, m->info.yres, KINDLE_WAVEFORM_MODE_A2 | KINDLE_UPDATE_MODE_PARTIAL | KINDLE_WAIT_MODE_NOWAIT, m->framebuffer->fd, true);
+        // }
 #endif
 
         m->currentBuffer = buffer;
@@ -463,7 +467,7 @@ static int fb_post(struct framebuffer_device_t *dev, buffer_handle_t buffer)
         }
         else
         {
-            kindle_display_update(0, 0, m->info.xres, m->info.yres, KINDLE_DEFAULT_MODE, m->framebuffer->fd, true);
+            kindle_display_update(0, 0, m->info.xres, m->info.yres, KINDLE_WAVEFORM_MODE_REAGL | KINDLE_UPDATE_MODE_PARTIAL | KINDLE_WAIT_MODE_NOWAIT, m->framebuffer->fd, true);
         }
 #endif
 
@@ -553,7 +557,7 @@ int mapFrameBufferLocked(struct private_module_t *module)
         return -errno;
 
 #ifdef FSL_EPDC_FB
-    int auto_update_mode = AUTO_UPDATE_MODE_REGION_MODE;
+    int auto_update_mode = AUTO_UPDATE_MODE_AUTOMATIC_MODE;
     int retval = ioctl(fd, MXCFB_SET_AUTO_UPDATE_MODE, &auto_update_mode);
     if (retval < 0)
     {
@@ -566,6 +570,28 @@ int mapFrameBufferLocked(struct private_module_t *module)
     if (retval < 0)
     {
         ALOGW("MXCFC_SET_UPDATE_SCHEME failed.");
+        return -errno;
+    }
+
+    struct mxcfb_waveform_modes wv_modes;
+    wv_modes.mode_init = WAVEFORM_MODE_INIT;
+	wv_modes.mode_du = WAVEFORM_MODE_DU;
+	wv_modes.mode_a2 = WAVEFORM_MODE_A2;
+	wv_modes.mode_gc4 = WAVEFORM_MODE_GC16;
+	wv_modes.mode_gc8 = WAVEFORM_MODE_GC16;
+	wv_modes.mode_gc16 = WAVEFORM_MODE_GC16;
+	wv_modes.mode_gc16_fast = WAVEFORM_MODE_A2;
+	wv_modes.mode_gc32 = WAVEFORM_MODE_GC16;
+	wv_modes.mode_gl16 = WAVEFORM_MODE_GC16;
+	wv_modes.mode_gl16_fast = WAVEFORM_MODE_A2;
+	wv_modes.mode_du4 = WAVEFORM_MODE_DU4;
+    wv_modes.mode_reagl = WAVEFORM_MODE_REAGL;
+	wv_modes.mode_reagld = WAVEFORM_MODE_REAGLD;
+
+    retval = ioctl(fd, MXCFB_SET_WAVEFORM_MODES, &wv_modes);
+    if (retval < 0)
+    {
+        ALOGW("MXCFC_SET_WAVEFORM_MODES failed.");
         return -errno;
     }
 
@@ -582,6 +608,10 @@ int mapFrameBufferLocked(struct private_module_t *module)
         // bleagh, bad info from the driver
         refreshRate = 60 * 1000; // 60 Hz
     }
+
+#if 1
+    refreshRate = 17 * 1000;
+#endif
 
     if (int(info.width) <= 0 || int(info.height) <= 0)
     {
@@ -646,7 +676,8 @@ int mapFrameBufferLocked(struct private_module_t *module)
     size_t fbSize = roundUpToPageSize(finfo.line_length * info.yres_virtual);
     module->framebuffer = new private_handle_t(dup(fd), fbSize, 0);
 
-    module->numBuffers = info.yres_virtual / info.yres;
+    module->numBuffers = NUM_BUFFERS;
+    //ALOGI("numBuffers = %d", module->numBuffers);
     module->bufferMask = 0;
 
     void *vaddr = mmap(0, fbSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

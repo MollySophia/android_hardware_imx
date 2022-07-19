@@ -7,6 +7,8 @@
 #define KINDLE_WAVEFORM_MODE_GC4 0x00000003
 #define KINDLE_WAVEFORM_MODE_A2 0x00000004
 #define KINDLE_WAVEFORM_MODE_AUTO 0x00000005
+#define KINDLE_WAVEFORM_MODE_REAGL     0x8     /* Ghost compensation waveform */
+#define KINDLE_WAVEFORM_MODE_REAGLD    0x9   /* Ghost compensation waveform with dithering */
 #define KINDLE_WAVEFORM_MODE_MASK 0x0000000F
 
 #define KINDLE_AUTO_MODE_REGIONAL 0x00000000

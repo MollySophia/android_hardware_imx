@@ -144,27 +144,27 @@ static int hwc_prepare(hwc_composer_device_1_t *dev,
     //ALOGI("numHwLayers: %d\n", displays[0]->numHwLayers);
 
     if (displays && displays[0]->numHwLayers <= MAX_RECT_NUM) {
-        int gc_interval = 100;
-        if(displays[0]->numHwLayers == 1) {
-            left[0] = displays[0]->hwLayers[0].displayFrame.left;
-            top[0] = displays[0]->hwLayers[0].displayFrame.top;
-            width[0] = displays[0]->hwLayers[0].displayFrame.right - left[0];
-            height[0] = displays[0]->hwLayers[0].displayFrame.bottom - top[0];
-            update_mode[0] = KINDLE_WAVEFORM_MODE_GC16 | KINDLE_UPDATE_MODE_FULL | KINDLE_WAIT_MODE_NOWAIT | KINDLE_GC_MASK | (gc_interval << 16);
-        } else {
+        int gc_interval = 50;
+        // if(displays[0]->numHwLayers == 1) {
+        //     left[0] = displays[0]->hwLayers[0].displayFrame.left;
+        //     top[0] = displays[0]->hwLayers[0].displayFrame.top;
+        //     width[0] = displays[0]->hwLayers[0].displayFrame.right - left[0];
+        //     height[0] = displays[0]->hwLayers[0].displayFrame.bottom - top[0];
+        //     update_mode[0] = KINDLE_WAVEFORM_MODE_GC16 | KINDLE_UPDATE_MODE_FULL | KINDLE_WAIT_MODE_NOWAIT | KINDLE_GC_MASK | (gc_interval << 16);
+        // } else {
             for (size_t i=0 ; i<displays[0]->numHwLayers - 1; i++) {
                 //dump_layer(&displays[0]->hwLayers[i]);
                 left[i] = displays[0]->hwLayers[i].displayFrame.left;
                 top[i] = displays[0]->hwLayers[i].displayFrame.top;
                 width[i] = displays[0]->hwLayers[i].displayFrame.right - left[i];
                 height[i] = displays[0]->hwLayers[i].displayFrame.bottom - top[i];
-                update_mode[i] = KINDLE_WAVEFORM_MODE_GC16 | KINDLE_UPDATE_MODE_PARTIAL | KINDLE_WAIT_MODE_NOWAIT | KINDLE_GC_MASK | (gc_interval << 16);
+                update_mode[i] = KINDLE_WAVEFORM_MODE_REAGL | KINDLE_UPDATE_MODE_PARTIAL | KINDLE_WAIT_MODE_NOWAIT | KINDLE_GC_MASK | (gc_interval << 16);
                 if(displays[0]->flags & HWC_GEOMETRY_CHANGED)
                     update_mode[i] = KINDLE_WAVEFORM_MODE_GC16 | KINDLE_UPDATE_MODE_PARTIAL | KINDLE_WAIT_MODE_NOWAIT | KINDLE_GC_MASK | (gc_interval << 16);
             }
             ctx->mFbDev[HWC_DISPLAY_PRIMARY]->setUpdateRect(
                         ctx->mFbDev[HWC_DISPLAY_PRIMARY], left, top, width, height, update_mode, displays[0]->numHwLayers - 1);
-        }
+        // }
     }
 
     return ret;
